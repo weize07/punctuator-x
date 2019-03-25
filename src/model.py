@@ -1,5 +1,5 @@
 import os
-from keras.layers import Input, Embedding, LSTM, Dense, TimeDistributed
+from keras.layers import Input, Embedding, LSTM, Dense, TimeDistributed, Bidirectional
 from keras.models import Model
 from keras.models import Sequential
 from keras.preprocessing.sequence import pad_sequences
@@ -11,11 +11,25 @@ from functools import partial, update_wrapper
 
 from process_data import load_dataset
 
+K.set_session(
+    K.tf.Session(
+        config=K.tf.ConfigProto(
+            device_count = {'GPU': 1 , 'CPU': 20}, 
+            intra_op_parallelism_threads=32, 
+            inter_op_parallelism_threads=32
+        )
+    )
+)
+
 MAX_SEQUENCE_LENGTH = 30
 EMBEDDING_DIM = 100
 
 def getLoss(weights, rnn=True):
     def w_categorical_crossentropy(y_true, y_pred):
+        # print(y_true.shape, y_pred.shape)
+        # y_true = K.print_tensor(y_true, message="y_true is: ")
+        # y_pred = K.print_tensor(y_pred, message="y_pred is: ")
+
         nb_cl = len(weights)
         if(not rnn):
             final_mask = K.zeros_like(y_pred[:, 0])
@@ -24,7 +38,7 @@ def getLoss(weights, rnn=True):
             y_pred_max_mat = K.equal(y_pred, y_pred_max)
             for c_p, c_t in product(range(nb_cl), range(nb_cl)):
                 final_mask += ( weights[c_t, c_p] * K.cast(y_pred_max_mat, tf.float32)[:, c_p] * K.cast(y_true, tf.float32)[:, c_t]  )
-            return K.categorical_crossentropy(y_pred, y_true) * final_mask 
+            return K.categorical_crossentropy(y_true, y_pred) * final_mask 
         else:
             final_mask = K.zeros_like(y_pred[:, :,0])
             y_pred_max = K.max(y_pred, axis=2)
@@ -32,10 +46,20 @@ def getLoss(weights, rnn=True):
             y_pred_max_mat = K.equal(y_pred, y_pred_max)
             for c_p, c_t in product(range(nb_cl), range(nb_cl)):
                 final_mask += ( weights[c_t, c_p] * K.cast(y_pred_max_mat, tf.float32)[:, :,c_p] * K.cast(y_true, tf.float32)[:, :,c_t]  )
-            return K.categorical_crossentropy(y_pred, y_true) * final_mask       
+            
+            # final_mask = K.print_tensor(final_mask, message="final_mask is: ")
+            # exit()
+            # return K.categorical_crossentropy(y_pred, y_true)       
+            return K.categorical_crossentropy(y_true, y_pred) * final_mask       
     return w_categorical_crossentropy
 
 weights = np.ones((4,4))
+for i in range(4):
+    weights[1][i] = 5
+    weights[2][i] = 3
+    weights[3][i] = 3
+weights[2][1] = 2
+
 custom_loss = getLoss(weights)
 
 class Puntuator:
@@ -47,7 +71,7 @@ class Puntuator:
     def load_glove_layer(self):
         embeddings_index = {}
         word_index = self.tokenizer.word_index
-        f = open(self.glove_path)
+        f = open(self.glove_path, encoding='utf-8', errors='ignore')
         for line in f:
             values = line.split()
             word = values[0]
@@ -94,6 +118,8 @@ class Puntuator:
         model = Sequential()
         model.add(self.embedding_layer)
         model.add(LSTM(EMBEDDING_DIM, return_sequences=True))
+        # model.add(Bidirectional(LSTM(EMBEDDING_DIM, return_sequences=True)))
+
         model.add(TimeDistributed(Dense(4, activation='softmax')))
         # model.compile(loss='categorical_crossentropy',
         model.compile(loss=custom_loss,
@@ -114,6 +140,7 @@ if __name__ == '__main__':
     ]
     testX = tokenizer.texts_to_sequences(tests)
     testX = pad_sequences(testX, maxlen=MAX_SEQUENCE_LENGTH)
+    print(testX)
     # print(testX.shape)
     print(puntuator.predict(testX, len(tests)))
 

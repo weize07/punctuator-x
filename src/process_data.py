@@ -41,17 +41,18 @@ def load_dataset():
         texts = []
         count = 0
         for line in f:
-            count += 1
-            if count > 10000:
-                break
-            if not line.strip():
-                continue
+            # count += 1
+            # if count > 1000:
+            #     break
+            # if not line.strip():
+            #     continue
             texts.append(line)
             current = 'a'
             is_alnum = True
             y = []
             for i in range(len(line)):
-                if line[i].isalnum() or line[i] in ['\"', '\'']:
+                if line[i].isalnum():
+                # if line[i].isalnum() or line[i] in ['\"', '\'']:
                     if is_alnum:
                         current = line[i]
                     else:
