@@ -1,11 +1,11 @@
 #!encoding=utf-8
 import argparse
-from keras.preprocessing.text import Tokenizer
-from keras.preprocessing.text import text_to_word_sequence
-from keras.utils import to_categorical
-from keras.preprocessing.sequence import pad_sequences
-from keras.models import Sequential
-from keras.layers import Input, Embedding, LSTM, Dense, TimeDistributed
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.text import text_to_word_sequence
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, TimeDistributed
 
 import numpy as np
 

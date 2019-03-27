@@ -1,70 +1,22 @@
 import os
-from keras.layers import Input, Embedding, LSTM, Dense, TimeDistributed, Bidirectional
-from keras.models import Model
-from keras.models import Sequential
-from keras.preprocessing.sequence import pad_sequences
-from keras.utils import multi_gpu_model
+
 import numpy as np
-from itertools import product
-import keras.backend as K
 import tensorflow as tf
-from functools import partial, update_wrapper
+from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, TimeDistributed, Bidirectional
+
+from tensorflow.keras import Sequential
+from tensorflow.keras.models import Model
+from tensorflow.keras.utils import multi_gpu_model
+
 
 from process_data import load_dataset
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-NUMS_OF_GPU = 4
-NUMS_OF_CPU = 8
-
-K.set_session(
-    K.tf.Session(
-        config=K.tf.ConfigProto(
-            device_count = {'GPU': NUMS_OF_GPU , 'CPU': NUMS_OF_CPU}, 
-            intra_op_parallelism_threads=32, 
-            inter_op_parallelism_threads=32
-        )
-    )
-)
+NUMS_OF_GPU = 0
+NUMS_OF_CPU = 4
 
 MAX_SEQUENCE_LENGTH = 15
 EMBEDDING_DIM = 100
-
-def getLoss(weights, rnn=True):
-    def w_categorical_crossentropy(y_true, y_pred):
-        # print(y_true.shape, y_pred.shape)
-        # y_true = K.print_tensor(y_true, message="y_true is: ")
-        # y_pred = K.print_tensor(y_pred, message="y_pred is: ")
-
-        nb_cl = len(weights)
-        if(not rnn):
-            final_mask = K.zeros_like(y_pred[:, 0])
-            y_pred_max = K.max(y_pred, axis=1)
-            y_pred_max = K.reshape(y_pred_max, (K.shape(y_pred)[0], 1))
-            y_pred_max_mat = K.equal(y_pred, y_pred_max)
-            for c_p, c_t in product(range(nb_cl), range(nb_cl)):
-                final_mask += ( weights[c_t, c_p] * K.cast(y_pred_max_mat, tf.float32)[:, c_p] * K.cast(y_true, tf.float32)[:, c_t]  )
-            return K.categorical_crossentropy(y_true, y_pred) * final_mask 
-        else:
-            final_mask = K.zeros_like(y_pred[:, :,0])
-            y_pred_max = K.max(y_pred, axis=2)
-            y_pred_max = K.reshape(y_pred_max, (K.shape(y_pred)[0], K.shape(y_pred)[1], 1))
-            y_pred_max_mat = K.equal(y_pred, y_pred_max)
-            for c_p, c_t in product(range(nb_cl), range(nb_cl)):
-                final_mask += ( weights[c_t, c_p] * K.cast(y_pred_max_mat, tf.float32)[:, :,c_p] * K.cast(y_true, tf.float32)[:, :,c_t]  )
-            
-            # final_mask = K.print_tensor(final_mask, message="final_mask is: ")
-            # exit()
-            # return K.categorical_crossentropy(y_pred, y_true)       
-            return K.categorical_crossentropy(y_true, y_pred) * final_mask       
-    return w_categorical_crossentropy
-
-weights = np.ones((4,4))
-for i in range(4):
-    weights[1][i] = 5
-    weights[2][i] = 3
-    weights[3][i] = 3
-weights[2][1] = 2
-
-custom_loss = getLoss(weights)
 
 class Puntuator:
     def __init__(self, glove_dir, tokenizer):
@@ -125,12 +77,12 @@ class Puntuator:
         # model.add(Bidirectional(LSTM(EMBEDDING_DIM, return_sequences=True)))
 
         model.add(TimeDistributed(Dense(4, activation='softmax')))
-        # model.compile(loss='categorical_crossentropy',
         if NUMS_OF_GPU > 1:
             pal_model = multi_gpu_model(model, NUMS_OF_GPU)
         else:
             pal_model = model
-        pal_model.compile(loss=custom_loss,
+        pal_model.compile(loss='categorical_crossentropy',
+        # pal_model.compile(loss=custom_loss,
               optimizer='rmsprop', metrics=['acc'])
         self.model = pal_model
         pal_model.summary()
@@ -151,5 +103,3 @@ if __name__ == '__main__':
     print(testX)
     # print(testX.shape)
     print(puntuator.predict(testX, len(tests)))
-
-
